@@ -102,6 +102,7 @@ type BackupOptions struct {
 	ReadConcurrency   uint
 	NoScan            bool
 	SkipIfUnchanged   bool
+	CompareXattr      string
 }
 
 func (opts *BackupOptions) AddFlags(f *pflag.FlagSet) {
@@ -144,6 +145,7 @@ func (opts *BackupOptions) AddFlags(f *pflag.FlagSet) {
 		f.BoolVar(&opts.ExcludeCloudFiles, "exclude-cloud-files", false, "excludes online-only cloud files (such as OneDrive, iCloud drive, …)")
 	}
 	f.BoolVar(&opts.SkipIfUnchanged, "skip-if-unchanged", false, "skip snapshot creation if identical to parent snapshot")
+	f.StringVar(&opts.CompareXattr, "compare-xattr", "", "skip based on unchanged xattr")
 
 	// parse read concurrency from env, on error the default value will be used
 	readConcurrency, _ := strconv.ParseUint(os.Getenv("RESTIC_READ_CONCURRENCY"), 10, 32)
@@ -637,6 +639,7 @@ func runBackup(ctx context.Context, opts BackupOptions, gopts global.Options, te
 	arch.SelectByName = selectByNameFilter
 	arch.Select = selectFilter
 	arch.WithAtime = opts.WithAtime
+	arch.CompareXattr = opts.CompareXattr
 
 	arch.Error = func(item string, err error) error {
 		success = false
