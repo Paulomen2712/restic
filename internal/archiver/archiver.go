@@ -1,6 +1,7 @@
 package archiver
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -132,6 +133,10 @@ type Archiver struct {
 
 	// Flags controlling change detection. See doc/040_backup.rst for details.
 	ChangeIgnoreFlags uint
+
+	// CompareXattr configures if directories are skipped if the specified xattr
+	// remains consistent between parent and current snapshot
+	CompareXattr string
 }
 
 // Flags for the ChangeIgnoreFlags bitfield.
@@ -329,6 +334,7 @@ func (arch *Archiver) saveDir(ctx context.Context, snPath string, dir string, me
 		return futureNode{}, err
 	}
 
+	//fmt.Printf("node '%v' with meta '%v' has children: %v\n", treeNode, meta, names)
 	nodes := make([]futureNode, 0, len(names))
 
 	for _, name := range names {
@@ -581,7 +587,27 @@ func (arch *Archiver) save(ctx context.Context, snPath, target string, previous 
 
 	case fi.Mode.IsDir():
 		debug.Log("  %v dir", target)
+		node, err := arch.nodeFromFileInfo(snPath, target, meta, false)
+		if err != nil {
+			return futureNode{}, false, err
+		}
 
+		if previous != nil && !arch.dirChanged(node, previous, arch.ChangeIgnoreFlags) {
+			// if arch.allBlobsPresent(previous) {
+			debug.Log("%v hasn't changed, using old subtree", target)
+			//fmt.Printf("%v hasn't changed, using old subtree (Size: %v Content %v)\n", target, previous.Size, previous.Content)
+			arch.trackItem(snPath, previous, previous, ItemStats{}, time.Since(start))
+
+			// copy subtree
+			node.Subtree = previous.Subtree
+
+			fn = newFutureNodeWithResult(futureNodeResult{
+				snPath: snPath,
+				target: target,
+				node:   node,
+			})
+			return fn, false, nil
+		}
 		snItem := snPath + "/"
 		oldSubtree, err := arch.loadSubtree(ctx, previous)
 		if err != nil {
@@ -652,6 +678,24 @@ func fileChanged(fi *fs.ExtendedFileInfo, node *data.Node, ignoreFlags uint) boo
 	return false
 }
 
+// fileChanged tries to detect whether a file's content has changed compared
+// to the contents of node, which describes the same path in the parent backup.
+// It should only be run for regular files.
+func (arch *Archiver) dirChanged(node, previous *data.Node, ignoreFlags uint) bool {
+	switch {
+	case node == nil:
+		return true
+	case previous.Type != data.NodeTypeDir:
+		// We're only called for dirs, so this is a type change.
+		return true
+	case arch.CompareXattr != "" && bytes.Equal(previous.GetExtendedAttribute(arch.CompareXattr), node.GetExtendedAttribute(arch.CompareXattr)):
+		// if the directories don't actually have the xattr then return true
+		return len(node.GetExtendedAttribute(arch.CompareXattr)) == 0
+	}
+
+	return true
+}
+
 // join returns all elements separated with a forward slash.
 func join(elem ...string) string {
 	return path.Join(elem...)
@@ -680,7 +724,6 @@ func (arch *Archiver) saveTree(ctx context.Context, snPath string, atree *tree, 
 	debug.Log("%v (%v nodes), parent %v", snPath, len(atree.Nodes), previous)
 	nodeNames := atree.NodeNames()
 	nodes := make([]futureNode, 0, len(nodeNames))
-
 	// iterate over the nodes of atree in lexicographic (=deterministic) order
 	for _, name := range nodeNames {
 		subatree := atree.Nodes[name]
@@ -868,6 +911,7 @@ func (arch *Archiver) Snapshot(ctx context.Context, targets []string, opts Snaps
 	if err != nil {
 		return nil, restic.ID{}, nil, err
 	}
+	//fmt.Printf("Looking for changes in paths: %v\n", targets)
 
 	atree, err := newTree(arch.FS, cleanTargets)
 	if err != nil {
