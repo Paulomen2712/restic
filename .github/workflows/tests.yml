@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - add-skip-dirs
 
   # run tests for all pull requests
   pull_request:
