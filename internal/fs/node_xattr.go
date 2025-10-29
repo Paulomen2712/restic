@@ -4,6 +4,8 @@ package fs
 
 import (
 	"os"
+	"slices"
+	"strings"
 	"syscall"
 
 	"github.com/restic/restic/internal/data"
@@ -23,6 +25,14 @@ func getxattr(path, name string) ([]byte, error) {
 // given path in the file system.
 func listxattr(path string) ([]string, error) {
 	l, err := xattr.LList(path)
+	if env := os.Getenv("OS_XATTR"); env != "" {
+		for _, xattr := range strings.Split(env, ",") {
+			xattr = strings.TrimSpace(xattr)
+			if xattr != "" && !slices.Contains(l, xattr) {
+				l = append(l, xattr)
+			}
+		}
+	}
 	return l, handleXattrErr(err)
 }
 

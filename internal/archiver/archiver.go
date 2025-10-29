@@ -131,14 +131,12 @@ type Archiver struct {
 	// Flags controlling change detection. See doc/040_backup.rst for details.
 	ChangeIgnoreFlags uint
 
-<<<<<<< HEAD
 	// for excluded items
 	ExcludedItem func(path string)
-=======
+	
 	// CompareXattr configures if directories are skipped if the specified xattr
 	// remains consistent between parent and current snapshot
 	CompareXattr string
->>>>>>> fc7b26107 (Skip checking for files in dirs based on xattr)
 }
 
 // Flags for the ChangeIgnoreFlags bitfield.
@@ -321,7 +319,6 @@ func (arch *Archiver) saveDir(ctx context.Context, snPath string, dir string, me
 		return futureNode{}, err
 	}
 
-	//fmt.Printf("node '%v' with meta '%v' has children: %v\n", treeNode, meta, names)
 	nodes := make([]futureNode, 0, len(names))
 
 	finder := data.NewTreeFinder(previous)
@@ -600,10 +597,9 @@ func (arch *Archiver) save(ctx context.Context, snPath, target string, previous 
 			return futureNode{}, false, err
 		}
 
-		if previous != nil && !arch.dirChanged(node, previous, arch.ChangeIgnoreFlags) {
+		if previous != nil && !arch.dirChanged(node, previous) {
 			// if arch.allBlobsPresent(previous) {
 			debug.Log("%v hasn't changed, using old subtree", target)
-			//fmt.Printf("%v hasn't changed, using old subtree (Size: %v Content %v)\n", target, previous.Size, previous.Content)
 			arch.trackItem(snPath, previous, previous, ItemStats{}, time.Since(start))
 
 			// copy subtree
@@ -689,7 +685,7 @@ func fileChanged(fi *fs.ExtendedFileInfo, node *data.Node, ignoreFlags uint) boo
 // fileChanged tries to detect whether a file's content has changed compared
 // to the contents of node, which describes the same path in the parent backup.
 // It should only be run for regular files.
-func (arch *Archiver) dirChanged(node, previous *data.Node, ignoreFlags uint) bool {
+func (arch *Archiver) dirChanged(node, previous *data.Node) bool {
 	switch {
 	case node == nil:
 		return true
@@ -935,7 +931,6 @@ func (arch *Archiver) Snapshot(ctx context.Context, targets []string, opts Snaps
 	if err != nil {
 		return nil, restic.ID{}, nil, err
 	}
-	//fmt.Printf("Looking for changes in paths: %v\n", targets)
 
 	atree, err := newTree(arch.FS, cleanTargets)
 	if err != nil {
