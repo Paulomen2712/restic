@@ -320,7 +320,6 @@ func (arch *Archiver) saveDir(ctx context.Context, snPath string, dir string, me
 		return futureNode{}, err
 	}
 
-	//fmt.Printf("node '%v' with meta '%v' has children: %v\n", treeNode, meta, names)
 	nodes := make([]futureNode, 0, len(names))
 
 	for _, name := range names {
@@ -578,10 +577,9 @@ func (arch *Archiver) save(ctx context.Context, snPath, target string, previous 
 			return futureNode{}, false, err
 		}
 
-		if previous != nil && !arch.dirChanged(node, previous, arch.ChangeIgnoreFlags) {
+		if previous != nil && !arch.dirChanged(node, previous) {
 			// if arch.allBlobsPresent(previous) {
 			debug.Log("%v hasn't changed, using old subtree", target)
-			//fmt.Printf("%v hasn't changed, using old subtree (Size: %v Content %v)\n", target, previous.Size, previous.Content)
 			arch.trackItem(snPath, previous, previous, ItemStats{}, time.Since(start))
 
 			// copy subtree
@@ -667,7 +665,7 @@ func fileChanged(fi *fs.ExtendedFileInfo, node *data.Node, ignoreFlags uint) boo
 // fileChanged tries to detect whether a file's content has changed compared
 // to the contents of node, which describes the same path in the parent backup.
 // It should only be run for regular files.
-func (arch *Archiver) dirChanged(node, previous *data.Node, ignoreFlags uint) bool {
+func (arch *Archiver) dirChanged(node, previous *data.Node) bool {
 	switch {
 	case node == nil:
 		return true
@@ -710,6 +708,7 @@ func (arch *Archiver) saveTree(ctx context.Context, snPath string, atree *tree, 
 	debug.Log("%v (%v nodes), parent %v", snPath, len(atree.Nodes), previous)
 	nodeNames := atree.NodeNames()
 	nodes := make([]futureNode, 0, len(nodeNames))
+
 	// iterate over the nodes of atree in lexicographic (=deterministic) order
 	for _, name := range nodeNames {
 		subatree := atree.Nodes[name]
@@ -893,7 +892,6 @@ func (arch *Archiver) Snapshot(ctx context.Context, targets []string, opts Snaps
 	if err != nil {
 		return nil, restic.ID{}, nil, err
 	}
-	//fmt.Printf("Looking for changes in paths: %v\n", targets)
 
 	atree, err := newTree(arch.FS, cleanTargets)
 	if err != nil {
