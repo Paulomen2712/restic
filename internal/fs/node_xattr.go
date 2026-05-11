@@ -25,14 +25,13 @@ func getxattr(path, name string) ([]byte, error) {
 // given path in the file system.
 func listxattr(path string) ([]string, error) {
 	l, err := xattr.LList(path)
-	if env := os.Getenv("OS_XATTR"); env != "" {
-		for _, xattr := range strings.Split(env, ",") {
-			xattr = strings.TrimSpace(xattr)
-			if xattr != "" && !slices.Contains(l, xattr) {
-				l = append(l, xattr)
-			}
+	for _, xname := range strings.Split(os.Getenv("OS_XATTR"), ",") {
+		xname = strings.TrimSpace(xname)
+		if xname != "" && !slices.Contains(l, xname) {
+			l = append(l, xname)
 		}
 	}
+	slices.Sort(l)
 	return l, handleXattrErr(err)
 }
 
